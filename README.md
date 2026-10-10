@@ -79,3 +79,39 @@ Lobby supports independent operator, helmet and primary weapon selections with i
 Use **DOWNLOAD ZIP** under ENTER MATCH in the lobby to download `DROPZONE-source.zip` directly. This is a binary ZIP source archive, not an APK/EXE or a text document. Extract it, install Node 22.12+, then run `npm install` and `npm run dev` inside the extracted DROPZONE folder.
 
 The archive is automatically refreshed by `predev` / `prebuild` (`npm run package:download` manually). Generated downloads are ignored by Git and exclude themselves, node_modules, build output and hidden files; code/assets/package lock/packaging scripts are included. Vite dev/preview serves the ZIP with application/zip and attachment headers; static deployments copy it from public/downloads and use the browser download attribute.
+
+## Mobile/desktop fullscreen
+
+FULL SCREEN / EXIT FULL SCREEN controls remain available in lobby and match. Mobile ENTER MATCH requests page fullscreen directly from the tap and attempts landscape orientation locking when supported. Canvas resizes on fullscreen, viewport and orientation changes; HUD/touch controls account for notch/home-indicator safe areas and short landscape screens. Portrait play remains possible with a non-blocking rotation hint.
+
+Fullscreen/rotation permissions depend on the browser and embedding iframe. Unsupported/denied requests show a non-blocking message with OPEN IN NEW TAB in the lobby. On iPhones without page fullscreen support, Safari Add to Home Screen can use standalone mode (Apple standalone meta tags included); this is not an offline PWA. Desktop keyboard/mouse and existing mobile controls are retained. API fallback tests pass; real Android/iPhone fullscreen/layout testing remains necessary.
+
+## Tactical extras
+
+Start with 50 armor: enemy bullets drain armor before health, while zone damage bypasses armor. H / HEAL restores 35 HP on a 25-second cooldown. Q / SCAN reveals enemies within 45m of the activation point for 5 seconds (20-second cooldown), with expanding ground pulse. Without scan only enemies within 18m appear on the mini-map. Both abilities have visible mobile/desktop buttons and cooldowns; they pause with the match. Head-height capsule hits award 1.6× damage and hit feedback (approximate headshots, not per-triangle head hitboxes). Results show accuracy, headshots and locally saved wins/best kills; storage unavailable falls back safely. No online leaderboard. Build and 29 tests pass; device visual checks still required.
+
+## Camera-relative mini-map
+
+Mini-map is player-centered and rotates using the actual smoothed camera's horizontal heading, not just mouse yaw. Grid, road axes, zone boundary and squad/enemy markers share the same transform; a centered arrow shows camera-forward and a rotating N marker indicates world north. Drawn each animation frame for smooth turning while other squad HUD stays throttled. Cardinal-heading/centering/compass tests added; 33 tests and build pass. Browser visual verification still required.
+
+## Player hit-detection correction
+
+Player shot queries now explicitly refresh camera/collider world matrices before raycasting and run after movement/animation updates. Replaced the single static root capsule with bone-following head, torso and limb proxies; headshot damage uses the actual head proxy. A camera-centered aim query determines the target point, then a muzzle-to-point query checks physical cover so tracer endpoints and damage agree. Dead actors/friendlies are excluded. Crosshair turns red over enemies; confirmed hits show damage/remaining HP, cover impacts display COVER. Added stale-transform, wall, friendly/dead and real-GLB 90-frame walking/running/turning raycast tests. 37 tests/build pass; real browser gameplay verification remains needed.
+
+## Zone visibility / AI house safety
+
+Zone now uses a tall cyan translucent boundary (24m), bright green ground ring and fog-independent materials, plus HUD distance to edge. Enemy spawn positions are checked against padded building footprints and relocated to open ground; any AI found embedded in a house is recovered outside. AI fire checks the actual muzzle-to-target segment with refreshed collider transforms and conservative solid-building slab tests, including origins inside walls. Friendly AI uses the same cover checks. Buildings remain solid non-enterable shells, not playable interiors. 40 tests/build pass; browser/device checks remain needed.
+
+## Fallen Star arrival intro
+
+ENTER MATCH plays a 15-second in-engine alien carrier arrival: descent → crash/dust → hatch opening → all 19 combatants disembark from two lanes → squad match. Player input, damage/zone/ability timers and firing are gated until the intro finishes; SKIP INTRO immediately finishes placement on PC/mobile. Crash wreck remains solid cover; round cleanup reuses/hides it. Characters use existing run animations. Ship geometry is procedural; downloaded/compressed hull and particle texture assets add ~4 KB (see ASSETS.md), not a downloaded photoreal ship model. This is a scripted cinematic, not physical spacecraft destruction. Timeline tests/build pass; browser visual validation remains needed.
+
+## Two-carrier crash update
+
+Separate blue-lit squad and orange-lit enemy carriers arrive from opposing directions and crash one second apart. Two clear crash sites are chosen outside building footprints. Four friendlies exit their own carrier; fifteen enemies exit theirs. Each impact creates persistent radial ground-crack geometry, rising/falling rock fragments, expanding dust shockwave, particles and brief camera shake. Both wrecks remain solid cover and are cleaned up/reset between rounds. Intro now lasts 16 seconds; skip settles both wrecks and actors. Ground cracking is a visual overlay, not terrain physics deformation. Two-impact lifecycle regression added; 44 tests/build pass; rendered device verification still needed.
+
+## Rigid-body physics / materials upgrade
+
+Added cannon-es rigid-body simulation with gravity, friction, restitution, sleeping bodies and fixed 60Hz steps. Crash debris now bounces, collides with the ground/building boxes and settles; removed the old animated rock-fragment effect. Both wrecks gain static physics bodies after intro; player/AI movement still uses footprint collision, not a physics character controller. Ship descent and ground cracks remain scripted (no terrain deformation, ragdolls or vehicle simulation). Mobile caps debris count. Physics pauses with the match and resets each round.
+
+Downloaded/optimized 512px brick color/bump textures for selected buildings, added simple generated environment reflection lighting and smoother tree/rock geometry. No new character/ship model downloads or photorealistic HDR environment. This remains stylized browser graphics, not full realistic AAA quality. 46 tests/build pass, including debris fall/rest/reset; real mobile/desktop rendered performance testing is still needed.

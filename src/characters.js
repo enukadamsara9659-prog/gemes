@@ -2,8 +2,8 @@ import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {blendWeights,damp} from './motion.js';
+import {createHitboxes,syncHitboxes} from './hit-detection.js';
 import {getWeapon} from './loadout.js';
-import {createHeadgear} from './headgear.js';
 import {solveArm} from './arm-ik.js';
 import {locomotion,reloadPose,WALK_SPEED,RUN_SPEED} from './animation-state.js';
 export const OPERATORS=[
@@ -29,7 +29,7 @@ function syncAttachments(root){
 export function createSoldier(scene,operator='ranger',team='enemy',loadout={}){
  if(!template)throw new Error('Load the soldier before creating operators');
  const kit=OPERATORS.find(k=>k.id===operator)||OPERATORS[0];
- const gun=getWeapon(loadout.weapon),helmet=loadout.helmet||kit.helmet;
+ const gun=getWeapon(loadout.weapon),helmet='none';
  const root=new T.Group();scene.add(root);
  const visual=clone(template.scene);visual.rotation.y=0;visual.scale.setScalar(kit.scale);root.add(visual);
  const ownedMaterials=[];
@@ -47,11 +47,6 @@ export function createSoldier(scene,operator='ranger',team='enemy',loadout={}){
  const bindPose=new Map();for(const bone of Object.values(bones))bindPose.set(bone,bone.quaternion.clone());
  const attachments=[];
  const head=attachment(root,bones.Head);attachments.push(head);
- // Convert the head bone frame back into character axes for helmet construction.
- const headgear=createHeadgear(helmet,team==='squad'?0x385969:kit.accent);
- const headFrame=root.getWorldQuaternion(new T.Quaternion()).invert().multiply(bones.Head?bones.Head.getWorldQuaternion(new T.Quaternion()):new T.Quaternion());
- headgear.quaternion.copy(headFrame.invert());headgear.scale.setScalar(kit.scale/1.14);head.add(headgear);
- ownedMaterials.push(...headgear.userData.materials);
  const chest=attachment(root,bones.Spine2);attachments.push(chest);
  part(chest,new T.BoxGeometry(.57,.46,.14),kit.accent,[0,-.05,.18]);
  for(let i=-1;i<=1;i++)part(chest,new T.BoxGeometry(.14,.18,.1),kit.color,[i*.18,-.14,.29]);
@@ -71,8 +66,8 @@ export function createSoldier(scene,operator='ranger',team='enemy',loadout={}){
  for(let i=0;i<5;i++)part(weapon,new T.BoxGeometry(.14,.025,.035),0x484e47,[0,.1,-.15-i*.045]);
  const bolt=part(weapon,new T.BoxGeometry(.04,.045,.09),0x88918b,[.075,.04,.02]);
  const muzzle=new T.Mesh(new T.ConeGeometry(.1,.28,6),new T.MeshBasicMaterial({color:0xffd787}));muzzle.rotation.x=-Math.PI/2;muzzle.position.set(0,.02,gun.muzzle);muzzle.visible=false;weapon.add(muzzle);
- const hitbox=new T.Mesh(new T.CapsuleGeometry(.42,1.2,4,8),new T.MeshBasicMaterial({visible:false}));hitbox.position.y=1.05;root.add(hitbox);
- root.userData={character:true,team,kit,gun,helmet,mixer,idle,run,walk,visual,bones,bindPose,attachments,weapon,mag,bolt,muzzle,hitbox,state:'idle',weights:{idle:1,walk:0,run:0},smoothSpeed:0,direction:1,flash:0,recoil:0,reloadTime:0,reloadProgress:0,time:0,gait:0,aim:0,ownedMaterials};
+ const hitboxes=createHitboxes(root,bones,kit.scale/1.14);const hitbox=hitboxes[0];
+ root.userData={character:true,team,kit,gun,helmet,mixer,idle,run,walk,visual,bones,bindPose,attachments,weapon,mag,bolt,muzzle,hitbox,hitboxes,state:'idle',weights:{idle:1,walk:0,run:0},smoothSpeed:0,direction:1,flash:0,recoil:0,reloadTime:0,reloadProgress:0,time:0,gait:0,aim:0,ownedMaterials};
  animateSoldier(root,0,false);return root;
 }
 function poseArms(root,handBlend=0){
@@ -121,7 +116,7 @@ export function animateSoldier(root,dt,moving,sprinting=false,options={}){
  d.weapon.rotation.set((options.pitch??0)*.55-d.recoil*.055+reload.lower*.18,0,-reload.lower*.12);
  d.mag.position.y=-.18-reload.magazineDrop*.08;d.mag.rotation.x=-.16-reload.magazineDrop*.2;
  d.bolt.position.z=.02+d.recoil*.055;d.muzzle.visible=d.flash>0;d.muzzle.scale.setScalar(.85+d.recoil*.25);
- poseArms(root,reload.handBlend);syncAttachments(root);
+ poseArms(root,reload.handBlend);syncAttachments(root);syncHitboxes(root,d.bones,d.hitboxes);
 }
 export function flashSoldier(root){root.userData.flash=.065;root.userData.recoil=Math.min(1.5,root.userData.recoil+root.userData.gun.recoil);}
 export function beginReload(root){if(root.userData.reloadTime>0)return false;root.userData.reloadTime=root.userData.gun.reload;root.userData.reloadProgress=0;root.userData.flash=0;root.userData.recoil=0;return true;}
@@ -129,6 +124,6 @@ export function resetSoldierAnimation(root){const d=root.userData;d.smoothSpeed=
 export function disposeSoldier(root){
  const d=root.userData;d.mixer.stopAllAction();d.mixer.uncacheRoot(d.visual);
  for(const m of d.ownedMaterials)m.dispose();
- for(const a of [...d.attachments,d.weapon,d.hitbox])a.traverse(o=>{if(o.isMesh){o.geometry.dispose();if(o===d.muzzle||o===d.hitbox)o.material.dispose();}});
- root.removeFromParent();
+ for(const a of [...d.attachments,d.weapon,...d.hitboxes])a.traverse(o=>{if(o.isMesh){o.geometry.dispose();if(o===d.muzzle)o.material.dispose();}});
+ d.hitboxes[0]?.material.dispose();root.removeFromParent();
 }
