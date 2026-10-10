@@ -1,0 +1,20 @@
+{
+  "name": "dropzone-last-survivor",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "test": "node --test",
+    "package:download": "node scripts/package-download.mjs",
+    "predev": "npm run package:download",
+    "prebuild": "npm run package:download"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.3",
+    "vite": "^7.1.0"
+  }
+}
